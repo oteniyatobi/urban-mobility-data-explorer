@@ -16,5 +16,4 @@ data/raw/taxi_zones/taxi_zones.sbn
 data/raw/taxi_zones/taxi_zones.sbx
 data/raw/taxi_zones/taxi_zones.shp.xml
 data/raw/*.parquet
-scripts/clean_data.py
 >>>>>>> a2e3b7b10ff6c88a50b5f4ce7ea718ce77a82530

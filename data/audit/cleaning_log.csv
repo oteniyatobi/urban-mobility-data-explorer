@@ -1,0 +1,10 @@
+rule,reason,rows_removed
+R2.a,pickup outside Jan 2019,537
+R2.b,dropoff <= pickup,6291
+R2.c,duration > 24h,5
+R2.d,distance <= 0 or > 100,48806
+R2.e,negative fare,5698
+R2.r,fare > $500,6
+R2.n,tip > total,1
+R2.s,tip > fare,4964
+R2.t,speed > 80 mph,5894
