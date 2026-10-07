@@ -1,0 +1,12 @@
+.vscode
+venv
+
+data/raw/taxi_zone_lookup.csv
+data/raw/yellow_tripdata_2019-01.csv
+data/raw/taxi_zones/taxi_zones.shp
+data/raw/taxi_zones/taxi_zones.dbf
+data/raw/taxi_zones/taxi_zones.prj
+data/raw/taxi_zones/taxi_zones.shx
+data/raw/taxi_zones/taxi_zones.sbn
+data/raw/taxi_zones/taxi_zones.sbx
+data/raw/taxi_zones/taxi_zones.shp.xml
