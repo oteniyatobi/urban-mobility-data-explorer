@@ -106,6 +106,16 @@ def main():
     raw_count = len(df)
     print(f" raw: {raw_count:,}")
 
+    print("\nConverting timestamps")
+    df["tpep_pickup_datetime"] = pd.to_datetime(
+        df["tpep_pickup_datetime"],
+        errors="coerce"
+    )
+    df["tpep_dropoff_datetime"] = pd.to_datetime(
+        df["tpep_dropoff_datetime"],
+        errors="coerce"
+    )
+    
     print("\nAdding derived features:")
     df = add_derived_features(df)
     print(" trip_duration_min, avg_speed_mph, tip_pct, pickup_hour, pickup_dow, is_weekend")

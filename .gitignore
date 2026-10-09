@@ -1,11 +1,7 @@
-<<<<<<< HEAD
-taxi_zone_lookup.csv
-taxi_zones.zip
-yellow_tripdata_2019-01.csv
-=======
 .vscode
 venv
-
+.env
+.env.*
 data/raw/taxi_zone_lookup.csv
 data/raw/yellow_tripdata_2019-01.csv
 data/raw/taxi_zones/taxi_zones.shp
@@ -16,4 +12,4 @@ data/raw/taxi_zones/taxi_zones.sbn
 data/raw/taxi_zones/taxi_zones.sbx
 data/raw/taxi_zones/taxi_zones.shp.xml
 data/raw/*.parquet
->>>>>>> a2e3b7b10ff6c88a50b5f4ce7ea718ce77a82530
+data/processed/*.parquet
