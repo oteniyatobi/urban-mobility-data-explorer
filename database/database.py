@@ -78,7 +78,6 @@ class TripFare(Base):
     tip_pct = Column(Float)
 
 #Create the database tables 
-Base.metadata.drop_all(engine)
 Base.metadata.create_all(engine)
 print("Db tables created successfully")
 
@@ -128,9 +127,18 @@ for rate_id in rate_ids:
 payment_ids = lookup_data.column("payment_type").unique().to_pylist()
 payment_types = []
 for payment_id in payment_ids:
+    payment_description = {
+        1 : "Credit card",
+        2 : "Cash",
+        3 : "No charge",
+        4 : "Dispute",
+        5 : "Unknown",
+        6: "Voided trip"
+
+    }
     payment_type = {
         "payment_type_id": payment_id,
-        "description": "Payment Type" + str(payment_id)
+        "description": payment_description.get(payment_id, "Unknown")
 
     }
     payment_types.append(payment_type)
@@ -168,7 +176,7 @@ print("lookup tables filled")
 #load trips in batches
 trip_id = 1
 loaded_rows = 0
-for batch in parquet.iter_batches(batch_size=50000):
+for batch in parquet.iter_batches(batch_size=5000):
     trips = []
     fares = []
     rows = batch.to_pylist()
