@@ -79,13 +79,13 @@ def add_derived_features(df):
     # add useful features for trip analysis
     #minutes
     minutes_taken = (df["tpep_dropoff_datetime"] - df["tpep_pickup_datetime"]).dt.total_seconds() / 60
-    df["trip_duration_min"] = minutes_taken
+    df["trip_duration_min"] = minutes_taken.round(2)
 
     #avg speed
-    df["avg_speed_mph"] = (df["trip_distance"] / (minutes_taken / 60)).replace([float("inf")], 0)
+    df["avg_speed_mph"] = (df["trip_distance"] / (minutes_taken / 60)).replace([float("inf")], 0).round(2)
 
     #tip ratio
-    df["tip_pct"] = (df["tip_amount"] / df["fare_amount"].replace(0, pd.NA)).fillna(0)
+    df["tip_pct"] = (df["tip_amount"] / df["fare_amount"].replace(0, pd.NA)).fillna(0).round(4)
 
     #pickup hour
     df["pickup_hour"] = df["tpep_pickup_datetime"].dt.hour
