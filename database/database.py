@@ -1,4 +1,5 @@
 import os
+import pandas as pd
 import pyarrow.parquet as pq
 from dotenv import load_dotenv
 from sqlalchemy import create_engine
@@ -15,6 +16,11 @@ DB_PASSWORD = os.getenv("DB_PASSWORD")
 
 engine = create_engine(f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}")
 PARQUET_FILE = "data/processed/cleaned_trips.parquet"
+ZONE_LOOKUP = "data/raw/taxi_zone_lookup.csv"
+
+#helper function to solve the problem of Mysql rejecting pandas NaN
+def nan_none(value):
+    return None if pd.isna(value) else value
 
 class Base(DeclarativeBase):
     pass
@@ -41,7 +47,9 @@ class PaymentType(Base):
 class TaxiZone(Base):
     __tablename__ = "zones"
     location_id = Column(Integer, primary_key=True)
+    borough = Column(String(50), index=True)
     zone_name = Column(String(250))
+    service_zone = Column(String(50))
 
 #trips table
 class Trip(Base):
@@ -83,83 +91,61 @@ print("Db tables created successfully")
 
 parquet = pq.ParquetFile(PARQUET_FILE)
 
-lookup_data = pq.read_table(
-    PARQUET_FILE,
-    columns=[
-        "VendorID",
-        "RatecodeID",
-        "payment_type",
-        "PULocationID",
-        "DOLocationID"
-    ]
-)
+
 
 #prepare the vendors
-vendor_ids = lookup_data.column("VendorID").unique().to_pylist()
-vendors = []
-for vendor_id in vendor_ids:
-    vendor = {
-        "vendor_id": vendor_id,
-        "name": "Vendor" + str(vendor_id)
 
-    }
-    vendors.append(vendor)
+vendor_names = {
+    1: "Creative Mobile Technologies",
+    2: "VeriFone Inc.",
+    4: "Unknown",
+    6: "Myle Technologies",
+}
+
+vendors = [{"vendor_id": k, "name": v} for k, v in vendor_names.items()]
 
 #prepare the fare rates
-rate_ids = lookup_data.column("RatecodeID").unique().to_pylist()
-fare_rates = []
+
 rate_descriptions = {
     1: "Standard rate",
     2: "JFK airport rate",
     3: "Newark airport rate",
     4: "Nassau or Westchester rate",
     5: "Negotiated fare",
-    6: "Group ride"
+    6: "Group ride",
+    99: "Unknown rate"
 }
-for rate_id in rate_ids:
-    fare_rate = {
-        "rate_id": rate_id,
-        "description": rate_descriptions.get(rate_id, "Unknown Rate")
-    }
-    fare_rates.append(fare_rate)
+
+fare_rates =  [{"rate_id": k, "description": v} for k, v in rate_descriptions.items()]
 
 #prepare payment types
-payment_ids = lookup_data.column("payment_type").unique().to_pylist()
-payment_types = []
-for payment_id in payment_ids:
-    payment_description = {
-        1 : "Credit card",
-        2 : "Cash",
-        3 : "No charge",
-        4 : "Dispute",
-        5 : "Unknown",
-        6: "Voided trip"
 
-    }
-    payment_type = {
-        "payment_type_id": payment_id,
-        "description": payment_description.get(payment_id, "Unknown")
+payment_descriptions = {
+    1 : "Credit card",
+    2 : "Cash",
+    3 : "No charge",
+    4 : "Dispute",
+    5 : "Unknown",
+    6: "Voided trip"
 
-    }
-    payment_types.append(payment_type)
-#prepare taxi zones
-pickup_zone_ids = lookup_data.column("PULocationID").unique().to_pylist()
-dropoff_zone_ids = lookup_data.column("DOLocationID").unique().to_pylist()
-all_zone_ids = set()
+}
+payment_types = [{"payment_type_id": k, "description": v} for k, v in payment_descriptions.items()]
+#prepare taxi zones from the official lookup csv file
 
-for zone_id in pickup_zone_ids:
-    all_zone_ids.add(zone_id)
-for zone_id in dropoff_zone_ids:
-    all_zone_ids.add(zone_id)
+zones_df = pd.read_csv(ZONE_LOOKUP)
 
 zones = []
-for zone_id in all_zone_ids:
-    zone = {
-        "location_id": zone_id,
-        "zone_name": "Zone" + str(zone_id)
 
-    }
-    zones.append(zone)
+zones = [
+    {
+        "location_id": int(r.LocationID),
+        "borough": nan_none(r.Borough),
+        "zone_name": nan_none(r.Zone),
+        "service_zone": nan_none(r.service_zone),
+        }
+    for r in zones_df.itertuples(index=False)
+]
+
 
 #insert the lookup data into the db
 with engine.begin() as connection:
@@ -183,34 +169,34 @@ for batch in parquet.iter_batches(batch_size=5000):
     for row in rows:
         trip = {
             "trip_id": trip_id,
-            "vendor_id": row["VendorID"],
-            "rate_id": row["RatecodeID"],
-            "payment_type_id": row["payment_type"],
-            "pickup_location_id": row["PULocationID"],
-            "dropoff_location_id": row["DOLocationID"],
-            "pickup_datetime": row["tpep_pickup_datetime"],
-            "dropoff_datetime": row["tpep_dropoff_datetime"],
-            "passenger_count": row["passenger_count"],
-            "trip_distance": row["trip_distance"],
-            "store_and_fwd_flag": row["store_and_fwd_flag"],
-            "trip_duration_min": row["trip_duration_min"],
-            "avg_speed_mph": row["avg_speed_mph"],
-            "pickup_hour": row["pickup_hour"],
-            "pickup_dow": row["pickup_dow"],
-            "is_weekend": row["is_weekend"]
+            "vendor_id": nan_none(row["VendorID"]),
+            "rate_id": nan_none(row["RatecodeID"]),
+            "payment_type_id": nan_none(row["payment_type"]),
+            "pickup_location_id": nan_none(row["PULocationID"]),
+            "dropoff_location_id": nan_none(row["DOLocationID"]),
+            "pickup_datetime": nan_none(row["tpep_pickup_datetime"]),
+            "dropoff_datetime": nan_none(row["tpep_dropoff_datetime"]),
+            "passenger_count": nan_none(row["passenger_count"]),
+            "trip_distance": nan_none(row["trip_distance"]),
+            "store_and_fwd_flag": nan_none(row["store_and_fwd_flag"]),
+            "trip_duration_min": nan_none(row["trip_duration_min"]),
+            "avg_speed_mph": nan_none(row["avg_speed_mph"]),
+            "pickup_hour": nan_none(row["pickup_hour"]),
+            "pickup_dow": nan_none(row["pickup_dow"]),
+            "is_weekend": nan_none(row["is_weekend"])
         }
         trips.append(trip)
         fare = {
             "trip_id": trip_id,
-            "fare_amount": row["fare_amount"],
-            "extra": row["extra"],
-            "mta_tax": row["mta_tax"],
-            "tip_amount": row["tip_amount"],
-            "tolls_amount": row["tolls_amount"],
-            "improvement_surcharge": row["improvement_surcharge"],
-            "congestion_surcharge": row["congestion_surcharge"],
-            "total_amount": row["total_amount"],
-            "tip_pct": row["tip_pct"]
+            "fare_amount": nan_none(row["fare_amount"]),
+            "extra": nan_none(row["extra"]),
+            "mta_tax": nan_none(row["mta_tax"]),
+            "tip_amount": nan_none(row["tip_amount"]),
+            "tolls_amount": nan_none(row["tolls_amount"]),
+            "improvement_surcharge": nan_none(row["improvement_surcharge"]),
+            "congestion_surcharge": nan_none(row["congestion_surcharge"]),
+            "total_amount": nan_none(row["total_amount"]),
+            "tip_pct": nan_none(row["tip_pct"])
         }
         fares.append(fare)
         trip_id += 1
