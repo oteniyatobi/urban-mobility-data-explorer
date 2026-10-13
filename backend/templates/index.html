@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NYC Taxi Trips</title>
+    <link rel="stylesheet" href="static/style.css">
+</head>
+<body>
+    <header class="header">
+        <h1>NYC Taxi Trips</h1>
+        <p>See how people move around New york City</p>
+    </header>
+    <main class="page">
+        #show errors incase backend has a problem
+        <p id="message" class="message hidden"></p>
+        <section class="box">
+            <h2>Filters</h2>
+            <div class="filter-grid">
+                <div class="field">
+                    <label for="dateFrom">Pickup date from</label>
+                    <input type="date" id="dateFrom">
+                </div>
+           
+                <div class="field">
+                    <label for="dateTo">Pickup date to</label>
+                    <input type="date" id="dateTo">
+                </div>
+                <div class="field">
+                    <label for="paymentType">Payment Type</label>
+                    <select id="paymentType">
+                        <option value=""> All payment types</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="pickupZone">Pickup zone</label>
+                    <select id="pickupZone">
+                        <option value="">All zones</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="minDistance">Minimum Distance (miles)</label>
+                    <input type="number" min="0" step="0.1" placeholder="0">
+                </div>
+                <div class="field">
+                    <label for="maxDistance">Maximum Distance (miles)</label>
+                    <input type="number" min="0" step="0.1" placeholder="100">
+                </div>
+                <div class="field">
+                    <label for="minFare">Minimum Fare ($)</label>
+                    <input type="number" id="minfare" min="0" step="0.5" placeholder="0">
+                </div>
+                <div class="field">
+                    <label for="maxFare">Maximum Fare ($)</label>
+                    <input type="number" id="maxfare" min="0" step="0.5" placeholder="50">
+                </div>
+                <div class="field">
+                    <label for="sortBy">Sort By</label>
+                    <select id="sortBy">
+                        <option value="">Original order</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="sortDir">Direction</label>
+                    <select id="sortDir">
+                        <option value="asc">Low to High</option>
+                        <option value="desc">High to low</option>
+                    </select>
+                </div>
+                <div class="field">
+                    <label for="pageSize">Trips per page</label>
+                    <select id="pageSize">
+                        <option value="100">100</option>
+                        <option value="500" selected>500</option>
+                        <option value="1000">1000</option>
+                    </select>
+                </div>
+
+            </div>
+
+            <div class="button-row">
+                <button id="applyButton" class="button button-main">Apply filters</button>
+                <button id="resetButton" class="button">Reset</button>
+            </div>
+            <p class="small-note">
+                Dates and payments are filtered by the server while distance, fare
+                and zones are filtered on the trips currently loaded on this page
+            </p>
+
+        </section>
+        
+        <section class="chart-grid">
+            <div class="box chart-wide">
+                <h2>Trips by hour of day</h2>
+                <p class="small-note">Which hours are busiest?</p>
+                <div class="chart-holder"><canvas id="hourChart"></canvas></div>
+            </div>
+            <div class="box">
+                <h2>Payment Types</h2>
+                <p class="small-note">How do passengers pay?</p>
+                <div class="chart-holder"><canvas id="paymentChart"></canvas></div>
+            </div>
+            <div class="box chart-wide">
+                <h2>Trip distance groups</h2>
+                <p class="small-note">Are most trips short rides or long rides?</p>
+                <div class="chart-holder"><canvas id="distanceChart"></canvas></div>
+            </div>
+            <div class="box">
+                <h2>Busiest pickup zones</h2>
+                <p class="small-note">Top 5 on this page</p>
+                <ol id="topZones" class="top-list"></ol>
+            </div>
+        </section>
+
+        <section class="box">
+            <h2>Trips</h2>
+            <p class="small-note">Click a column heading to sort. Click a row to see all its details</p>
+            <div class="table-wrap">
+                <table id="tripTable">
+                    <thead id="tripHead"></thead>
+                    <tbody id="tripBody"></tbody>
+                </table>
+            </div>
+
+            <div class="button-row page-buttons">
+                <button id="prevButton" class="button">Previous</button>
+                <span id="pageLabel">Page 1</span>
+                <button id="nextButton" class="Button">Next</button>
+            </div>
+        </section>
+
+    </main>
+
+    <dialog id="detailBox" class="detail-box">
+        <h2>Trip details</h2>
+        <d1 id="detailList"></d1>
+        <button id="closeDetail" class="button button-main">Close</button>
+    </dialog>
+    <footer class="footer">
+        <p>Cards and charts describe describe the trips loaded currently loaded on this page </p>
+    </footer>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</body>
+</html>

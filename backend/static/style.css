@@ -1,0 +1,273 @@
+* {
+    box-sizing: border-box
+}
+
+body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    font-size: 16px;
+    line-height: 1.5;
+    color: #23272b;
+    background-color: #eef0f2;
+}
+
+h1,
+h2 {
+    font-family: Arial, sans-serif;
+    margin: 0 0 8px 0;
+}
+h2 {
+    font-size: 24px;
+}
+
+.header {
+    background-color: #23272b;
+    color: #ffffff;
+    padding: 28px 24px;
+    border-bottom: 8px solid #ffc20e;
+}
+
+.header p {
+    margin: 0;
+    color: #dddddd;
+}
+
+.page {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 24px;
+}
+
+.box {
+    background-color: #ffffff;
+    border: 1px solid #d0d4d9;
+    border-radius: 6px;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+.small-note {
+    font-size: 14px;
+    color: #5b6168;
+    margin: 4px 0 12px 0;
+}
+
+.hidden {
+    display: none;
+}
+
+/* Error message at the top */
+.message {
+    background-color: #fdecea;
+    border: 1px solid #b3261e;
+    color: #b3261e;
+    padding: 12px 16px;
+    border-radius: 6px;
+    margin-bottom: 20px;
+}
+
+.filter-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 14px;
+    margin-top: 12px;
+}
+
+.field label {
+    display: block;
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.field input,
+.field select {
+    width: 100%;
+    padding: 8px;
+    font-family: inherit;
+    font-size: 15px;
+    border: 1px solid #9aa0a6;
+    border-radius: 4px;
+    background-color: #ffffff
+}
+
+.field input:focus,
+.field select:focus,
+.button:focus {
+    outline: 3px solid #2b5fa8;
+    outline-offset: 1px;
+}
+
+.button-row {
+    margin-top: 16px;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.button {
+    padding: 9px 18px;
+    font-family: inherit;
+    font-size: 15px;
+    font-weight: 600;
+    color: #23272b;
+    background-color: #ffffff;
+    border: 2px solid #23272b;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.button:hover {
+    background-color:#eef0f2;
+}
+
+.button-main {
+    background-color: #ffc20e;
+}
+
+.button-main:hover {
+    background-color: #e6ad00;
+}
+
+.button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.card-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 20px;
+}
+
+.card {
+    background-color: #ffffff;
+    border: 1px solid #d0d4d9;
+    border-left: 8px solid #ffc20e;
+    border-radius: 6px;
+    padding: 16px;
+}
+
+.card-label {
+    margin: 0;
+    font-size: 14px;
+    color: #5b6168;
+}
+
+.card-number {
+    margin: 4px 0 0 0;
+    font-family: Arial, sans-serif;
+    font-size: 38px;
+    font-weight: 700;
+}
+
+.chart-grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 20px;
+}
+
+.chart-holder {
+    position : relative;
+    height: 280px;
+}
+
+.top-list {
+    margin: 0;
+    padding-left: 22px;
+}
+
+.top-list li {
+    padding: 6px 0;
+    border-bottom: 1px solid #eef0f2;
+}
+
+.table-wrap {
+    overflow-x: auto;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+}
+
+th,
+td {
+    text-align: left;
+    padding: 8px 10px;
+    border-bottom: 1px solid #e1e4e8;
+    white-space: nowrap;
+}
+
+th {
+    background-color: #23272b;
+    color: #ffffff;
+    cursor: pointer;
+    user-select: none;
+}
+
+th:hover {
+    background-color: #3a4046;
+}
+
+tbody tr {
+    cursor: pointer;
+}
+
+tbody tr:hover {
+    background-color: #fff6d6;
+}
+
+.page-buttons {
+    justify-content: center;
+}
+
+.detail-box {
+    width: 90%;
+    max-width: 520px;
+    border: 3px solid #23272b;
+    border-radius: 6px;
+    padding: 20px;
+}
+
+.detail-box d1 {
+    margin: 12px 0 16px 0;
+    max-height: 50vh;
+    overflow-y: auto;
+}
+
+.detail-box dt {
+    font-size: 13px;
+    color: #5b6168;
+}
+
+.detail-box dd {
+    margin: 0 0 10px 0 0;
+    font-weight: 600;
+}
+
+detail-box::backdrop {
+    background-color: rgba(0, 0, 0, 0.5);
+}
+
+.footer {
+    text-align: center;
+    padding: 20px;
+    font-size: 14px;
+    color: #5b6168;
+}
+
+@media (max-width: 800px) {
+    .card-row {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .chart-grid {
+        grid-template-columns: 1fr;
+    }
+    .header h1 {
+        font-size: 34px;
+    }
+}
