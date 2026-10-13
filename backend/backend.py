@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, render_template
 from sqlalchemy import create_engine
 from sqlalchemy import  text, String, Integer, Float, DateTime, Boolean, Column, ForeignKey, insert
 from sqlalchemy.orm import DeclarativeBase
@@ -18,6 +18,11 @@ engine = create_engine(f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_P
 
 
 app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return render_template('index.html')
+
 @app.route('/api/fare_rates', methods=['GET'])   
 def get_fare_rates():
     with engine.connect() as connection:
