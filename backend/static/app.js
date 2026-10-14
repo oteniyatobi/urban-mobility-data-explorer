@@ -5,12 +5,26 @@ fetch('/api/payment_types')
     .then(response => response.json())
     .then(data => {
         paymentTypes = data;
+    data.forEach(trip => {
+        const option = document.createElement('option');
+        option.value = trip.payment_type_id;
+        option.textContent = trip.description;
+        document.getElementById('paymentType').appendChild(option);
     });
+});
+
 fetch('/api/zone')
     .then(response => response.json())
     .then(data => {
         zones = data;
+    data.forEach(zone => {
+        const option = document.createElement('option');
+        option.value = zone.location_id;
+        option.textContent = zone.zone_name;
+        document.getElementById('pickupZone').appendChild(option);
     });
+});
+
 function showTripDetails(tripId) {
     fetch(`/api/trip?trip_id=${tripId}`)
         .then(response => response.json())
@@ -31,6 +45,21 @@ function showTripDetails(tripId) {
         });
 }
 
+document.getElementById('applyButton').addEventListener('click', () => {
+    currentPage = 1;
+    document.getElementById('pageLabel').textContent = 'Page 1';
+    loadTrips();
+});
+document.getElementById('resetButton').addEventListener('click', () => {
+    document.getElementById('dateFrom').value = '';
+    document.getElementById('dateTo').value = '';
+    document.getElementById('paymentType').value = '';
+    document.getElementById('pickupZone').value = '';
+    currentPage = 1;
+    document.getElementById('pageLabel').textContent = 'Page 1';
+    loadTrips();
+   
+});
 
 document.getElementById('nextButton').addEventListener('click', () => {
     currentPage++;
@@ -46,7 +75,18 @@ document.getElementById('prevButton').addEventListener('click', () => {
 });
 
 function loadTrips(){
-    fetch(`/api/trip?page=${currentPage}`)
+    const dateFrom = document.getElementById('dateFrom').value;
+    const dateTo = document.getElementById('dateTo').value;
+    const limit = document.getElementById('pageSize').value;
+    const paymentType = document.getElementById('paymentType').value;
+    const pickupZone = document.getElementById('pickupZone').value;  
+    let url = `/api/trip?page=${currentPage}&limit=${limit}`;
+    if (dateFrom) url += `&date_from=${dateFrom}`;
+    if (dateTo) url += `&date_to=${dateTo}`;
+    if (paymentType) url += `&payment_type=${paymentType}`;
+    if (pickupZone) url += `&pickup_location_id=${pickupZone}`;
+    fetch(url)
+
         .then(response => response.json())
         .then(data => {
             const tripBody = document.getElementById('tripBody');
