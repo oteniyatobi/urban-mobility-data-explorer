@@ -2,7 +2,7 @@
 import time
 
 def find_busiest_vendor(vendor_ids):
-    start = time.time()
+    start = time.perf_counter()
     counts = {}
 
     for vendor_id in vendor_ids:
