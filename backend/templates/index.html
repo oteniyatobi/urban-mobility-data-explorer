@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>NYC Taxi Trips</title>
     <link rel="stylesheet" href="static/style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono:ital,wght@0,100..700;1,100..700&family=Saira:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet">
 </head>
 <body>
     <header class="header">
@@ -12,7 +15,6 @@
         <p>See how people move around New york City</p>
     </header>
     <main class="page">
-        #show errors incase backend has a problem
         <p id="message" class="message hidden"></p>
         <section class="box">
             <h2>Filters</h2>
@@ -117,15 +119,29 @@
             <p class="small-note">Click a column heading to sort. Click a row to see all its details</p>
             <div class="table-wrap">
                 <table id="tripTable">
-                    <thead id="tripHead"></thead>
+                    
+                    <thead id="tripHead">
+    <tr>
+        <th>ID</th>
+        <th>Pickup</th>
+        <th>Dropoff</th>
+        <th>Distance</th>
+        <th>Payment</th>
+        <th>Passengers</th>
+        <th>Pickup Zone</th>
+        <th>Dropoff Zone</th>
+        <th>Details</th>
+    </tr>
+</thead>
                     <tbody id="tripBody"></tbody>
+                    
                 </table>
             </div>
 
             <div class="button-row page-buttons">
                 <button id="prevButton" class="button">Previous</button>
                 <span id="pageLabel">Page 1</span>
-                <button id="nextButton" class="Button">Next</button>
+                <button id="nextButton" class="button">Next</button>
             </div>
         </section>
 
@@ -133,12 +149,13 @@
 
     <dialog id="detailBox" class="detail-box">
         <h2>Trip details</h2>
-        <d1 id="detailList"></d1>
+        <dl id="detailList"></dl>
         <button id="closeDetail" class="button button-main">Close</button>
     </dialog>
     <footer class="footer">
         <p>Cards and charts describe describe the trips loaded currently loaded on this page </p>
     </footer>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="static/app.js"></script>
 </body>
 </html>
