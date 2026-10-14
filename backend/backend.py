@@ -5,6 +5,14 @@ from sqlalchemy.orm import DeclarativeBase
 from dotenv import load_dotenv
 import os
 import flask
+from flask_cors import CORS
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "dsa"))
+
+from algo import find_busiest_vendor # type: ignore
+
 
 
 load_dotenv()
@@ -18,6 +26,7 @@ engine = create_engine(f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_P
 
 
 app = Flask(__name__)
+CORS(app) # enable CORS for all routes
 
 @app.route('/')
 def home():
@@ -143,15 +152,15 @@ def get_vendor():
 @app.route('/api/zone', methods=['GET'])
 def get_zone():
     try:
-        zone_id = request.args.get('zone_id', type=int)
-        if zone_id is not None and zone_id < 1:
-            return jsonify({"error": "Zone ID must be greater than or equal to 1"}), 400
+        location_id = request.args.get('location_id', type=int)
+        if location_id is not None and location_id < 1:
+            return jsonify({"error": "Location ID must be greater than or equal to 1"}), 400
         with engine.connect() as connection:
             query = "SELECT * FROM zones WHERE 1=1"
             params = {}
-            if zone_id is not None:
-                query += " AND zone_id = :zone_id"
-                params["zone_id"] = zone_id
+            if location_id is not None:
+                query += " AND location_id = :location_id"
+                params["location_id"] = location_id
             result = connection.execute(text(query), params)
             data = [dict(row._mapping) for row in result]
             if not data:
@@ -160,6 +169,84 @@ def get_zone():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.route('/api/stats/hourly', methods=['GET'])
+def get_hourly_stats():
+    try:
+        with engine.connect() as conn:
+            result = conn.execute(text("""
+                SELECT pickup_hour, is_weekend, COUNT(*) AS trips
+                FROM trips
+                GROUP BY pickup_hour, is_weekend
+                ORDER BY pickup_hour, is_weekend
+                """))
+            return jsonify([dict(r._mapping) for r in result])
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+#custom algo endpoint on the way
+_busiest_vendor_cache = None
+@app.route('/api/busiest-vendor', methods=['GET'])
+def get_busiest_vendor():
+    global _busiest_vendor_cache
+    #returns cached result if available
+    if _busiest_vendor_cache is not None:
+        return jsonify(_busiest_vendor_cache)
+
+    
+    try:
+        with engine.connect() as conn:
+            rows = conn.execute(text("SELECT vendor_id FROM trips")).fetchall()
+        
+        vendor_ids = [r[0] for r in rows if r[0] is not None]
+        result = find_busiest_vendor(vendor_ids)
+        
+        with engine.connect() as conn:
+            name_row = conn.execute(
+                text("SELECT name FROM vendors WHERE vendor_id = :vid"),
+                {"vid": result["busiest_vendor"]},
+            ).fetchone()
+            result["vendor_name"] = name_row[0] if name_row else "Unknown"
+        _busiest_vendor_cache = result
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/stats/payments', methods=['GET'])
+def get_payment_stats():
+    try:
+        with engine.connect() as conn:
+            result = conn.execute(text("""
+                SELECT pt.description AS payment_type, COUNT(*) AS trips
+                FROM trips t
+                JOIN payment_types pt ON t.payment_type_id = pt.payment_type_id
+                GROUP BY pt.description
+                ORDER BY trips DESC
+            """))
+            return jsonify([dict(r._mapping) for r in result])
+    except Exception as e:
+        return jsonify({"error": str(e)}, 500)
+
+@app.route('/api/stats/top-zones', methods=['GET'])
+def get_top_zones():
+    try:
+        k = request.args.get('k', default=10, type=int)
+        if k < 1 or k > 100:
+            return jsonify({"error": "k must be between 1 and 100"}), 400
+        with engine.connect() as conn:
+            result = conn.execute(text("""
+                SELECT z.location_id, z.zone_name, z.borough, COUNT(*) AS pickups
+                FROM trips t
+                JOIN zones z ON t.pickup_location_id = z.location_id
+                WHERE z.location_id NOT IN (264, 265)
+                GROUP BY z.location_id, z.zone_name, z.borough
+                ORDER BY pickups DESC
+                LIMIT :k
+            """), {"k": k})
+            return jsonify([dict(r._mapping) for r in result])
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+        
 
 
 if __name__ == "__main__":
