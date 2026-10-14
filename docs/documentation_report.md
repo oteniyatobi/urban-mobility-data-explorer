@@ -82,7 +82,7 @@ The single largest category of rejected data was **Rule R2.d: 48,803 trips with 
 
 The overwhelming majority of these were **zero-distance trips** — records where the taximeter was engaged and then disengaged at the same location, recording a distance of 0.00 miles. These could represent several real-world scenarios: a passenger hails a cab, gets in, and immediately changes their mind; a driver starts the meter accidentally and resets it; or a driver starts the meter to claim a no-show after waiting at a pickup location. Whatever the cause, the meter system still records these as completed trips with a fare (usually just the $2.50 base charge plus surcharges), and they flow into the TLC dataset as if they were real rides.
 
-The sheer volume — nearly 49,000 zero-distance records in a single month — suggests this is a **systemic issue in the TLC's metering infrastructure**, not isolated incidents. The meter system does not appear to have a minimum-distance threshold that would prevent a zero-distance trip from being recorded and uploaded. For the TLC, this is a data quality blind spot: these records inflate trip counts, deflect average distances downward, and produce undefined or infinite speed values that can corrupt downstream calculations if not caught.
+The sheer volume — nearly 49,000 zero-distance records in a single month — suggests this is a **systemic issue in the TLC's metering infrastructure**, not isolated incidents. The meter system does not appear to have a minimum-distance threshold that would prevent a zero-distance trip from being recorded and uploaded. For the TLC, this is a data quality blind spot: these records inflate trip counts, deflate average distances, and produce undefined or infinite speed values that can corrupt downstream calculations if not caught.
 
 For our analysis, removing these records was necessary to avoid distorting the distance distribution and speed calculations. However, it is worth noting that these zero-distance trips represent real economic activity — a driver who starts a meter and has the passenger cancel has still spent time and fuel — even if they do not represent actual transportation.
 
@@ -110,7 +110,7 @@ The system follows a **three-tier architecture**: a browser-based frontend, a Py
 |                                              |    |                    |                         |
 |  +----------------+  +----------------+      |    |                    v                         |
 |  |   Flask API    |  |  SQLAlchemy    |      |    |  +----------------------------------------+  |
-|  | 6 REST endpts  |  |  ORM models   |      |    |  |  Clean and validate (10 rules)         |  |
+|  | 7 REST endpts  |  |  ORM models   |      |    |  |  Clean and validate (10 rules)         |  |
 |  +-------+--------+  +--------+-------+      |    |  |    (clean_data.py)                     |  |
 +----------|-----------------|------------------+    |  +----------------------------------------+  |
            |       SQL       |                       |                    |                         |
@@ -135,9 +135,9 @@ The system follows a **three-tier architecture**: a browser-based frontend, a Py
 
 3. **Database loading:** The `database/database.py` script reads the cleaned Parquet file, creates the MySQL schema via SQLAlchemy ORM model definitions, and batch-inserts records in chunks of 5,000. The chunk size was chosen to balance between INSERT statement overhead (too small = too many round trips to MySQL) and memory usage (too large = pandas has to hold too many rows in a single INSERT buffer).
 
-4. **API serving:** The Flask backend connects to MySQL and serves six REST endpoints that the frontend consumes via `fetch()` calls. Each endpoint returns JSON.
+4. **API serving:** The Flask backend connects to MySQL and serves seven REST endpoints (plus the main page) that the frontend consumes via `fetch()` calls. Each endpoint returns JSON. One of them, `/api/busiest_vendor`, runs the hash-map counting algorithm described in Section 3 on the `vendor_id` values.
 
-5. **Frontend rendering:** The browser receives JSON from the API, renders it into interactive charts using Chart.js, and displays tabular data with client-side pagination and filtering controls.
+5. **Frontend rendering:** The browser receives JSON from the API, renders it into interactive charts using Chart.js, displays the busiest vendor result, and shows tabular data with client-side pagination and filtering controls.
 
 ### 2.2 Frontend Architecture
 
@@ -145,11 +145,14 @@ The frontend is a **single HTML page** (`backend/templates/index.html`) served b
 
 - **Vanilla JavaScript** for DOM manipulation, API calls via the Fetch API, and event handling. No framework (React, Vue, Angular) is used — the DOM is manipulated directly through `document.getElementById()`, `innerHTML`, and event listeners. This eliminates build tooling, bundling, and framework overhead for a dashboard that renders a fixed set of components.
 
-- **Chart.js** (loaded from CDN) for rendering four visualisations:
+- **Chart.js** (loaded from CDN) for rendering the chart visualisations:
   - A **bar chart** showing trips by hour of day (0-23), powered by the `pickup_hour` derived field
   - A **bar chart** showing trip distance groups (0-2mi, 2-5mi, 5-10mi, 10-20mi, 20+mi)
   - A **doughnut chart** showing payment type distribution (Credit card, Cash, No charge, Dispute, Unknown, Voided)
-  - A **dynamic HTML list** of the top 5 busiest pickup zones by trip count
+
+- **Dynamic HTML components** for non-chart output:
+  - A **list** of the top 5 busiest pickup zones by trip count
+  - A **busiest vendor panel** that fetches `/api/busiest_vendor` and displays the vendor with the most trips, its trip count, and the counts for all vendors
 
 - **CSS** for responsive layout, styled filter controls (range sliders for distance and fare, dropdowns for payment type and zone), and a data table with alternating row colours.
 
@@ -163,7 +166,7 @@ The frontend is a **single HTML page** (`backend/templates/index.html`) served b
 
 ### 2.3 Backend Architecture
 
-Flask serves **six RESTful endpoints**, each constructing raw SQL queries via SQLAlchemy's `text()` function with parameterised bindings to prevent SQL injection:
+Flask serves **seven RESTful API endpoints** plus the main page route. The data endpoints construct raw SQL queries via SQLAlchemy's `text()` function with parameterised bindings to prevent SQL injection. The `/api/busiest_vendor` endpoint reads the `vendor_id` column and passes it to the hash-map algorithm in `dsa/algo.py`.
 
 | Endpoint | Method | Description | Parameters |
 |----------|--------|-------------|------------|
@@ -174,12 +177,13 @@ Flask serves **six RESTful endpoints**, each constructing raw SQL queries via SQ
 | `/api/payment_types` | GET | Returns payment type lookup table | None |
 | `/api/zone` | GET | Returns taxi zone lookup table (ID to borough + zone name) | None |
 | `/api/fare_rates` | GET | Returns fare rate lookup table | None |
+| `/api/busiest_vendor` | GET | Runs the hash-map counting algorithm on `vendor_id` values and returns the busiest vendor, its trip count, all vendor counts, and algorithm timing | None |
 
 **Dynamic query construction:** The `/api/trip` endpoint builds its SQL `WHERE` clause at runtime based on which query parameters are present. If `date_from` is provided, it appends `AND pickup_datetime >= :date_from`; if `payment_type` is provided, it appends `AND payment_type_id = :payment_type`; and so on. The parameters are passed as bound variables (`:date_from`, `:payment_type`) rather than string-interpolated into the query, which prevents SQL injection attacks. The endpoint constructs the filter string as a Python string, then wraps the full query in `sqlalchemy.text()` for execution.
 
 **Error handling:** All endpoints use a `try/except` block that catches any exception during query execution or JSON serialisation and returns a `500 Internal Server Error` with the exception message in the response body. While exposing raw exception messages is not recommended for production (it can leak database schema details), it is appropriate for a development/academic project where debugging is more important than security hardening.
 
-**JSON response format:** Each endpoint returns a JSON array of objects, where each object represents one row. Keys match the column names from the SQL query. The response does not include metadata (total row count, pagination links, etc.), which means the frontend cannot display "Page X of Y" without a separate count query.
+**JSON response format:** Each data endpoint returns a JSON array of objects, where each object represents one row. Keys match the column names from the SQL query. The response does not include metadata (total row count, pagination links, etc.), which means the frontend cannot display "Page X of Y" without a separate count query. The `/api/busiest_vendor` endpoint instead returns a single JSON object containing the busiest vendor, its trip count, the full counts map, and the elapsed time of the algorithm.
 
 ### 2.4 Database Schema
 
@@ -211,7 +215,7 @@ trip_fares (~7.57M rows)
 
 **Design rationale for splitting trips and trip_fares:** The `trips` table contains temporal, spatial, and categorical data (when, where, how many passengers, which vendor). The `trip_fares` table contains the full financial breakdown (fare, extras, tax, tip, tolls, surcharges). Separating these into two tables joined on `trip_id` provides two benefits:
 
-1. **Query efficiency:** Dashboard queries that only need spatial or temporal data (e.g., "count of trips by hour" or "busiest pickup zones") do not need to load the seven financial columns, reducing I/O.
+1. **Query efficiency:** Dashboard queries that only need spatial, temporal, or vendor data (e.g., "count of trips by hour," "busiest pickup zones," or "busiest vendor") do not need to load the seven financial columns, reducing I/O.
 2. **Logical separation:** Financial data has different access patterns and sensitivity characteristics than trip logistics. In a production system, this separation would make it easier to apply different access controls or audit requirements to fare data.
 
 **The `nan_none()` helper:** The `database.py` loader includes a critical utility function that iterates through each row dictionary before insertion and converts any `NaN` value (pandas' representation of missing data) to Python `None` (which SQLAlchemy maps to SQL `NULL`). Without this conversion, MySQL rejects the `INSERT` because `NaN` is a floating-point concept with no SQL equivalent — MySQL interprets it as an invalid numeric literal rather than a null marker. This was one of the most difficult bugs to diagnose (see Section 5.1) because the error messages pointed to type mismatches rather than the actual cause.
@@ -225,7 +229,7 @@ trip_fares (~7.57M rows)
 | **Flask over Django** | Lightweight micro-framework with no built-in ORM, admin panel, or form handling overhead. Since we use raw SQL via `text()` rather than Django's ORM, Flask's minimalism avoids pulling in unused abstractions. Flask also has a shorter learning curve for a project of this scope. | No built-in admin panel for inspecting database contents. No built-in form validation, CSRF protection, or user authentication — all of which would matter in a production deployment but are unnecessary for this analytical dashboard. |
 | **MySQL over SQLite** | MySQL runs as a separate server process, supporting concurrent reads from multiple API requests without file-level locking. It enforces foreign key constraints by default (SQLite requires `PRAGMA foreign_keys = ON`), making schema integrity violations fail loudly. MySQL also supports `EXPLAIN` for query plan analysis and has mature indexing for large tables. | Requires installing and running a MySQL server, managing credentials, and configuring connection strings. SQLite would have been simpler to set up (single file, no server) but struggles with concurrent writes and has limited support for `ALTER TABLE` operations. |
 | **Parquet for intermediate storage** | Apache Parquet's columnar storage format compresses the dataset 3-5x compared to CSV, reducing disk I/O during the cleaning pipeline. Columnar reads allow the cleaning script to load only the columns it needs for each validation rule, rather than reading entire rows. Parquet also preserves data types (timestamps, integers, floats), eliminating the CSV parsing step where pandas has to infer types on every load. | Adds an extra conversion step (`csv_to_parquet.py`) to the pipeline. Parquet files are not human-readable (cannot be opened in a text editor for quick inspection), which makes ad-hoc debugging harder. The `scripts/inspect_data.py` utility partially mitigates this by printing summary statistics from the Parquet file. |
-| **Chart.js over D3.js** | Chart.js provides a declarative, configuration-driven API for standard chart types (bar, line, doughnut, pie). A chart can be created with a single JavaScript object specifying labels, data arrays, and options. D3.js offers far more control over custom visualisations but requires imperative code to binddata to SVG elements, handle transitions, and manage scales — significantly more code for the same standard charts. | Less control over non-standard interactivity (custom tooltips, animated transitions, linked brushing between charts). Chart.js also imposes its own styling decisions, making it harder to match a specific design system. For our standard dashboard charts, these limitations are acceptable. |
+| **Chart.js over D3.js** | Chart.js provides a declarative, configuration-driven API for standard chart types (bar, line, doughnut, pie). A chart can be created with a single JavaScript object specifying labels, data arrays, and options. D3.js offers far more control over custom visualisations but requires imperative code to bind data to SVG elements, handle transitions, and manage scales — significantly more code for the same standard charts. | Less control over non-standard interactivity (custom tooltips, animated transitions, linked brushing between charts). Chart.js also imposes its own styling decisions, making it harder to match a specific design system. For our standard dashboard charts, these limitations are acceptable. |
 | **Raw SQL via `text()` over ORM queries** | Full control over `JOIN`, `WHERE`, `GROUP BY`, and subquery logic. The dynamic `WHERE` clause construction in `/api/trip` would be awkward to express through SQLAlchemy's ORM query builder, which generates SQL behind an abstraction layer. Raw SQL is also easier to debug — the query string can be copied directly into a MySQL client for testing. | No compile-time type safety. Parameter binding must be done manually (though `text()` with `:param` syntax handles this safely). No automatic relationship loading — joins must be written explicitly. |
 | **Client-side filtering for distance/fare/zone** | Instant response when the user adjusts a range slider. No network round trip means the UI feels responsive even on slow connections. Since these filters operate on an already-reduced dataset (server-side date and payment filters have already been applied), the in-memory filtering is fast. | The browser must hold the full server-filtered result set in memory. For broad date ranges with no payment type filter, this could be hundreds of thousands of rows, potentially causing performance issues on low-memory devices. Moving these filters server-side (see Section 5.2) would eliminate this concern. |
 
@@ -235,84 +239,92 @@ trip_fares (~7.57M rows)
 
 ### 3.1 Problem Statement
 
-Given approximately 7.57 million trip records, each containing a `pickup_location_id` field that references one of 265 TLC-defined taxi zones, determine the **top K busiest pickup locations** by frequency count. The constraint is that this must be implemented **without relying on built-in sorting or counting libraries** — no `collections.Counter`, no `pandas.value_counts()`, no SQL `GROUP BY ... ORDER BY`, no `sorted()` with a key function. The goal is to demonstrate understanding of the underlying data structures and algorithmic principles that these library functions abstract away.
+The cleaned dataset contains approximately 7.57 million trip records, and each trip is linked to a `vendor_id` (1 = Creative Mobile Technologies, 2 = VeriFone Inc.). The task is to determine **which vendor completed the most trips and how many trips that vendor completed**. The counting and maximum-finding logic is written manually rather than delegated to `collections.Counter`, `pandas.value_counts()`, SQL `GROUP BY ... ORDER BY`, or `max()` with a key function, to show the data structures and algorithmic principles those functions abstract away.
 
-The algorithm is described in `dsa/algo.py` and is intended to be integrated as a dedicated API endpoint in future work (see Section 5.2).
+The algorithm is implemented in `dsa/algo.py` and tested in `dsa/testing_algo.py`. It is integrated into the application through the `/api/busiest_vendor` endpoint (Section 3.7).
 
-### 3.2 Algorithm: Hash Map Frequency Counter with Linear Scan
+### 3.2 Algorithm: Hash Map Counter with Linear Maximum Scan
 
-The algorithm solves the problem in two distinct phases:
+The algorithm works in two passes:
 
-**Phase 1 — Frequency Counting:** A single linear pass through all trip records builds a hash map (Python dictionary) where each key is a `pickup_location_id` and each value is the count of trips originating from that zone. For each record, the algorithm checks whether the location ID already exists in the map. If it does, the count is incremented by one. If it does not, a new entry is created with a count of one. This phase touches each record exactly once.
+**Pass 1: Counting.** A single loop visits every vendor ID once and keeps a running count per vendor in a hash map (a Python dictionary). If the ID is already a key, its count is incremented. Otherwise a new entry is created with a count of one. Lookup and update take O(1) on average.
 
-**Phase 2 — Top-K Extraction:** After the frequency map is built, the algorithm performs K repeated linear scans over the map entries to extract the K most frequent locations. Each scan finds the entry with the highest count that has not already been selected (tracked via a "seen" set). The winner of each scan is appended to the result list and added to the seen set. After K scans, the result list contains the K busiest zones in descending order of trip count.
+**Pass 2: Maximum.** A single loop visits each entry in the dictionary and tracks the vendor with the highest count seen so far. When the loop ends, that vendor is the busiest.
 
 ### 3.3 Pseudocode
 
 ```
-FUNCTION find_busiest_zones(pickup_locations, k):
-    // Phase 1: Build frequency map
-    // One pass through all n records, O(1) per record
-    freq_map = empty hash map
-    FOR EACH location_id IN pickup_locations:
-        IF location_id IN freq_map:
-            freq_map[location_id] = freq_map[location_id] + 1
+FUNCTION find_busiest_vendor(vendor_ids):
+    start timer
+    counts = empty map
+
+    # Pass 1: count trips per vendor
+    FOR each id IN vendor_ids:
+        IF id is in counts:
+            counts[id] = counts[id] + 1
         ELSE:
-            freq_map[location_id] = 1
-    
-    // Phase 2: Find top K by repeated linear scan
-    // K passes through m unique entries
-    top_k = empty list
-    seen = empty set
-    REPEAT k TIMES:
-        max_count = 0
-        max_id = null
-        FOR EACH (id, count) IN freq_map:
-            IF count > max_count AND id NOT IN seen:
-                max_count = count
-                max_id = id
-        APPEND (max_id, max_count) TO top_k
-        ADD max_id TO seen
-    
-    RETURN top_k
+            counts[id] = 1
+
+    # Pass 2: find the maximum
+    busiest_vendor = None
+    most_trips = 0
+    FOR each id IN counts:
+        IF counts[id] > most_trips:
+            most_trips = counts[id]
+            busiest_vendor = id
+
+    stop timer
+    RETURN busiest_vendor, most_trips, counts, elapsed time
 ```
 
 ### 3.4 Big O Analysis
 
-| Operation | Time Complexity | Space Complexity | Explanation |
-|-----------|----------------|-----------------|-------------|
-| Build frequency map (Phase 1) | O(n) | O(m) | One pass through all n records. Each dictionary lookup and insertion is O(1) amortised. The map grows to at most m entries, one per unique location. |
-| Find top K (Phase 2) | O(k * m) | O(k) | K linear scans, each iterating over m dictionary entries. The "seen" set lookup is O(1) per check. The result list holds K entries. |
-| **Total** | **O(n + k * m)** | **O(m + k)** | The two phases are sequential, so their complexities add. |
+Let **n** be the number of trips and **k** the number of unique vendors.
 
-Where:
-- **n** = number of trip records ≈ 7,570,000
-- **m** = number of unique taxi zones = 265
-- **k** = number of top results desired = 5 (in our frontend)
+| Step | Work | Time | Space |
+|------|------|------|-------|
+| Counting pass | n iterations, each a dictionary lookup and update | O(n) average | O(k) |
+| Maximum pass | k iterations, one comparison each | O(k) | O(1) extra |
+| **Total** | | **O(n + k) = O(n)**, since k ≤ n | **O(k)** |
 
-**Practical simplification:** Since m is a small constant (265 zones, fixed by the TLC's zone system), the k * m term in Phase 2 becomes 5 * 265 = 1,325 operations — trivial compared to the 7.57 million operations in Phase 1. This means the overall runtime is **effectively O(n)**, dominated entirely by the single pass through all trip records in Phase 1. The algorithm's performance scales linearly with the size of the dataset and is independent of the number of zones (as long as zones remain a small, bounded set).
+Only the counts dictionary is stored, so memory depends on the number of unique vendors, not the number of trips. The dataset has only a handful of vendors (2 in the `vendors` table), so the counting pass dominates the runtime and the maximum pass is negligible.
 
-**Space usage** is O(m) = O(265), which requires approximately 265 dictionary entries regardless of whether the dataset contains 7 million or 70 million records. Each entry stores an integer key (4 bytes) and an integer count (8 bytes), so the total memory footprint of the frequency map is roughly 3 KB — negligible on any modern system.
+**Best and worst case.** Every element is visited exactly once regardless of order or values, so running time does not depend on the input. The only variable part is k.
 
-### 3.5 Why This Approach Over Alternatives
+### 3.5 Empirical Verification
 
-**Alternative 1: Sort-and-count (O(n log n) time).** A naive approach would sort all 7.57 million records by `pickup_location_id` using a comparison sort (e.g., mergesort), then walk through the sorted array counting consecutive runs of the same ID. The sorting step alone costs O(n log n) ≈ 7,570,000 * 23 ≈ 174 million operations, compared to our approach's 7.57 million. Additionally, sorting requires either O(n) extra space (mergesort) or sacrifices stability (quicksort in-place), while our hash map uses only O(m) = O(265) space.
+If the algorithm is O(n), doubling n should roughly double the running time (doubling ratio ≈ 2.0), and the time per item should stay roughly constant. `dsa/testing_algo.py` checks this by:
 
-**Alternative 2: Min-heap of size K (O(m log k) extraction).** After building the same O(n) frequency map, a min-heap of size K could be used instead of the linear scan. Each of the m entries would be pushed onto the heap; if the heap exceeds size K, the smallest entry is popped. This produces O(m log k) extraction time instead of our O(k * m). With m = 265 and k = 5, this is O(265 * log 5) ≈ O(265 * 2.3) ≈ 610 operations, compared to our O(5 * 265) = 1,325 operations. The heap approach is asymptotically better for the extraction phase, but the constant-factor difference (610 vs. 1,325) is negligible — both complete in microseconds. The linear scan approach was chosen for its simplicity: it uses no additional data structures beyond a list and a set, and its correctness is immediately apparent from the pseudocode.
+1. generating random vendor IDs for sizes 10,000, 20,000, 40,000, and so on, each double the previous one;
+2. building the data before the timer starts, so only the algorithm is measured;
+3. running each size 3 times and keeping the fastest time to reduce noise;
+4. reporting the time, the time per item, and the doubling ratio.
 
-**Alternative 3: Array indexed by location ID.** Since location IDs range from 1 to 265, an array of size 266 (index 0 unused) could replace the hash map, with each index storing the count for that location ID. Array access is O(1) with no hash collision overhead. This approach would work and would be marginally faster due to better cache locality. However, the hash map was chosen because it handles sparse or non-contiguous IDs gracefully — if the TLC changed its zone numbering to include gaps or non-integer codes, the hash map would still work without modification. The code also reads more clearly when the key is the location ID itself (`freq_map[236]`) rather than an array index that happens to correspond to a location ID.
+Run it from the project root with `python -m dsa.testing_algo`. The results are in `docs/time_complexity_screenshot.png`. A doubling ratio close to 2.0 and a flat time-per-item column confirm linear O(n) behaviour.
 
 ### 3.6 Data Structure Choice: Hash Map (Dictionary)
 
-The Python dictionary was chosen as the primary data structure for frequency counting because of its combination of performance characteristics and code clarity:
+- **O(1) average insertion and lookup:** Each membership check and increment takes constant time on average, which makes the counting phase a clean single pass.
+- **Key-value semantics:** Using the vendor ID as the key and the trip count as the value makes the code self-documenting (`counts[vendor_id]` means "trips for this vendor").
+- **Flexible keys:** The map handles any ID type or numbering without modification. If the TLC added vendors with new IDs, the code would work unchanged.
+- **Compact:** Memory grows with the number of distinct vendors, not the number of trips, so the structure stays tiny whether the data holds 7 million or 70 million records.
 
-- **O(1) amortised insertion and lookup:** Each `location_id in freq_map` check and each `freq_map[location_id] += 1` increment runs in constant amortised time, thanks to Python's open-addressing hash table implementation. This makes the counting phase a clean single-pass linear scan.
+**Why not alternatives?** Sorting all vendor IDs and counting runs would cost O(n log n) time and extra space. Since k is tiny, an array indexed by vendor ID would work and be marginally faster, but the hash map is more general and reads more clearly. A heap is unnecessary because only the single maximum is needed, and the O(k) scan is already optimal for that.
 
-- **Dynamic sizing:** The dictionary grows automatically as new keys are added. With only 265 possible keys, the table never needs to resize more than a handful of times (Python dictionaries resize at 2/3 load factor, starting at size 8).
+### 3.7 Integration
 
-- **Key-value semantics:** Using the location ID as the key and the count as the value makes the code self-documenting: `freq_map[location_id]` clearly means "the count for this location." An equivalent array implementation would use `counts[location_id]`, which is slightly less readable and requires understanding that the array index corresponds to a zone ID.
+| Layer | Location | Role |
+|-------|----------|------|
+| Algorithm | `dsa/algo.py` | `find_busiest_vendor(vendor_ids)` |
+| Backend | `backend.py` | `/api/busiest_vendor` reads `vendor_id` from the `trips` table, runs the algorithm, and returns JSON |
+| Frontend | `templates/index.html` | Fetches the endpoint and displays the busiest vendor and all counts |
 
-- **Sparse-friendly:** The hash map allocates space only for keys that actually appear in the data. If certain zones have zero pickups (e.g., some Staten Island zones), they simply do not appear in the map, consuming no memory. An array would allocate space for all 265 slots regardless.
+### 3.8 Notes and Limitations
+
+- The algorithm uses Python's built-in `dict` as its hash map. All counting, comparison, and maximum-finding logic is written manually.
+- The timing in the API response covers only the algorithm, not the database fetch.
+- Because the comparison uses strict `>`, if two vendors tie, the one encountered first in the dictionary is reported. Ties are very unlikely at this scale.
+- An empty input returns `None` with a count of 0.
 
 ---
 
@@ -400,11 +412,11 @@ The main bug we encountered was a race condition where a client-side filter chan
 
 ### 5.2 What We Would Improve
 
-**Implement the busiest-zones algorithm in production code.** The `dsa/algo.py` file currently queries pickup location IDs from the database but does not run the full frequency-counting algorithm described in Section 3. The algorithm is documented and analysed in this report and is ready for implementation. Integrating it as a dedicated API endpoint (`/api/busiest_zones?k=10`) would replace the current frontend approach of fetching all trips and counting client-side, reducing network transfer from megabytes of trip JSON to a few hundred bytes of aggregated results, and eliminating the client-side memory burden of holding thousands of rows just to count frequencies.
+**Generalise the DSA component.** The busiest-vendor algorithm currently returns only the single top vendor. It could be extended to a top-K version (using a min-heap of size K over the counts map) so the same endpoint could rank pickup zones. It could also report ties explicitly and accept date or payment-type filters so the result matches the dashboard's other views.
 
 **Move all filtering to the server side.** Currently, distance, fare, and zone filtering happen in JavaScript after the data is fetched. This means the API returns all trips matching the date and payment type filters, and the browser discards the ones outside the distance/fare/zone range. For broad queries (e.g., all of January 2019 with no payment type filter), this could mean transferring and parsing hundreds of thousands of rows that are immediately thrown away. Moving these filters into the SQL `WHERE` clause would reduce data transfer, lower browser memory usage, and make the application perform consistently regardless of the result set size.
 
-**Introduce a caching layer.** Repeated queries for the same date range and filter combination currently hit the MySQL database every time. The aggregation endpoints (trips by hour, payment type distribution, distance group counts) are particularly wasteful because they re-aggregate across millions of rows for each request, even when the underlying data has not changed. Adding **Redis** or even a simple in-memory Python dictionary as a cache for frequently requested aggregations would reduce database load and improve response times. The cache key would be the combination of all filter parameters, and the cache would be invalidated if new data were loaded into the database.
+**Introduce a caching layer.** Repeated queries for the same date range and filter combination currently hit the MySQL database every time. The aggregation endpoints (trips by hour, payment type distribution, distance group counts, busiest vendor) are particularly wasteful because they re-aggregate across millions of rows for each request, even when the underlying data has not changed. Adding **Redis** or even a simple in-memory Python dictionary as a cache for frequently requested aggregations would reduce database load and improve response times. The cache key would be the combination of all filter parameters, and the cache would be invalidated if new data were loaded into the database.
 
 **Expand to multiple months.** The current dataset covers only January 2019. Extending to a full year (or multiple years) would enable analysis of seasonal patterns (do taxis get busier in summer or winter?), holiday effects (Christmas, New Year's Eve, Thanksgiving), weather correlations (rainy days vs. clear days), and long-term trends in taxi ridership versus ride-hail competition (Uber and Lyft). The cleaning pipeline and database schema are already designed to handle additional months without structural changes — the `validate_trip_times` function would need its date range parameter adjusted for each month, and the loader would batch-insert additional Parquet files into the same tables. The frontend's date range filter would automatically accommodate the wider time span.
 
