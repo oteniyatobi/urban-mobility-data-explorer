@@ -1,11 +1,27 @@
-#Algorithm for finding the busiest locations
+#Algorithm for finding the busiest vendor
+import time
 
-from sqlalchemy import create_engine, select
-from sqlalchemy.orm import Session
-from database.database import engine, Trip
+def find_busiest_vendor(vendor_ids):
+    start = time.time()
+    counts = {}
 
-with Session(engine) as session:
-    statement = select(Trip.pickup_location_id)
-    results = session.execute(statement)
-    pickup_locations = results.scalars().all()
-print(pickup_locations[:10])
+    for vendor_id in vendor_ids:
+        if vendor_id in counts:
+            counts[vendor_id] = counts[vendor_id] + 1
+        else:
+            counts[vendor_id] = 1
+
+    busiest_vendor = None
+    most_trips = 0
+    for vendor_id in counts:
+        if counts[vendor_id] > most_trips:
+            most_trips = counts[vendor_id]
+            busiest_vendor = vendor_id
+    seconds = time.perf_counter() - start
+
+    return{
+        "busiest_vendor": busiest_vendor,
+        "trips": most_trips,
+        "all_counts": counts,
+        "time_seconds": seconds
+    }
