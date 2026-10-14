@@ -13,7 +13,7 @@ The project was built as a group summative assignment for the Software Engineeri
 ## Team
 
 - **Oteniya Oluwatobi Jeremiah** (Backend API development, deployment)
-- **Ben** (Frontend, database)
+- **Benson Maina** (Frontend, database)
 - **Nziza Denilson** (Data cleaning, documentation)
 
 ## Tech Stack
@@ -155,6 +155,9 @@ The source data is the NYC TLC Yellow Taxi Trip Records for January 2019, public
    ```
 
    The app starts on `http://127.0.0.1:7000`.
+
+**Video Demo**
+link: https://youtu.be/H2avaVy0rmI
 
 ## License
 
