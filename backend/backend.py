@@ -67,19 +67,22 @@ def get_trip_fares():
 @app.route('/api/trip', methods=['GET'])
 def get_trip():
     try:
-    
+        
         trip_id = request.args.get('trip_id', type=int)
         limit = request.args.get('limit', default=100, type=int)
         page = request.args.get('page', default=1, type=int)
         payment_type = request.args.get('payment_type', type=str)
         date_from = request.args.get('date_from', type=str)
         date_to = request.args.get('date_to', type=str)
+        pickup_location_id = request.args.get('pickup_location_id', type=int)
         if page < 1:
             return jsonify({"error": "Page number must be greater than or equal to 1"}), 400
         if limit < 1:
             return jsonify({"error": "Limit must be greater than or equal to 1"}), 400
         if trip_id is not None and trip_id < 1:
             return jsonify({"error": "Trip ID must be greater than or equal to 1"}), 400
+        if pickup_location_id is not None and pickup_location_id < 1:
+            return jsonify({"error": "Pickup Location ID must be greater than or equal to 1"}), 400
 
         with engine.connect() as connection:
             query = "SELECT * FROM trips WHERE 1=1"
@@ -100,6 +103,9 @@ def get_trip():
             if date_to is not None:
                 query += " AND pickup_datetime <= :date_to"
                 params["date_to"] = date_to
+            if pickup_location_id is not None:
+                query += " AND pickup_location_id = :pickup_location_id"
+                params["pickup_location_id"] = pickup_location_id
 
             query += " LIMIT :limit OFFSET :offset"
             params["limit"] = limit
